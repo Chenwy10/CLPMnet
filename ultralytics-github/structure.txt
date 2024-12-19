@@ -1,6 +1,0 @@
-YOLO(engine.model.model) [framwork]
-    SegmentationModel(nn.task.basemodel) [model structure]
-    SegmentationTrainer(engine.trainer.basetrainer) [dataset]
-        YOLOPartDataset(data.dataset)
-    SegmentationValidator [val]
-    SegmentationPredictor [predict]

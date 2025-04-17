@@ -1,5 +1,5 @@
 # CLPMnet
-Official implementation of **Automated Sperm Morphology Analysis via Contrastive Learning-based Part Matching Network**
+Official implementation of **Automated Parts Segmentation of Sperm via a Contrastive Learning-Based Part Matching Network**
 
 In this repository, we release the CLPMnet code in Pytorch and the proposed Sperm Parsing Dataset v2
 

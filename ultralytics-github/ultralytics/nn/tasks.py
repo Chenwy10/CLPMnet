@@ -554,6 +554,7 @@ class ParsingPartModel(BaseModel):
         """Initialize the loss criterion for the DetectionModel."""
         return v8ParsingPartLoss(self)
 
+
 class SegmentationPartMatchModel(BaseModel):
     """YOLOv8 detection model."""
 
@@ -1874,7 +1875,7 @@ def guess_model_task(model):
     """
     
     def cfg2task(cfg):
-        pdb.set_trace()
+        #pdb.set_trace()
         """Guess from YAML dictionary."""
         m = cfg["head"][-1][-2].lower()  # output module name
         if m in {"classify", "classifier", "cls", "fc"}:
@@ -1900,7 +1901,8 @@ def guess_model_task(model):
     if isinstance(model, dict):
         with contextlib.suppress(Exception):
             return cfg2task(model)
-
+    
+    #pdb.set_trace()
     # Guess from PyTorch model
     if isinstance(model, nn.Module):  # PyTorch model
         for x in "model.args", "model.model.args", "model.model.model.args":

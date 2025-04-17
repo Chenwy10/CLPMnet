@@ -1125,7 +1125,7 @@ class v8ParsingPartMatchLoss(v8ParsingPartLoss):
                         positive_index = torch.where(target_group_i_one == target_group_i_zero[j])[0]
                         negtive_index = torch.where(target_group_i_one != target_group_i_zero[j])[0]
                         if len(positive_index)>0 and len(negtive_index)>0:
-                            pdb.set_trace()
+                            #pdb.set_trace()
                             features_one = torch.cat([torch.cat((pred_nodes_i_one[k].unsqueeze(0), pred_nodes_i_one[negtive_index]),dim=0).unsqueeze(0) for k in positive_index])
                             logits = (features_one * pred_nodes_i_zero[j].unsqueeze(0).unsqueeze(0)).sum(dim=-1)
                             logits = logits / self.hyp.temperature

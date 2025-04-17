@@ -4,8 +4,9 @@ from collections import abc
 from itertools import repeat
 from numbers import Number
 from typing import List
-
+import pdb
 import numpy as np
+import cv2
 
 from .ops import ltwh2xywh, ltwh2xyxy, xywh2ltwh, xywh2xyxy, xyxy2ltwh, xyxy2xywh
 
@@ -462,6 +463,7 @@ class InstancesParsing:
 
     def scale(self, scale_w, scale_h, bbox_only=False):
         """This might be similar with denormalize func but without normalized sign."""
+        #pdb.set_trace()
         self._bboxes.mul(scale=(scale_w, scale_h, scale_w, scale_h))
         if bbox_only:
             return
@@ -645,6 +647,303 @@ class InstancesParsing:
         bbox_format = instances_list[0]._bboxes.format
         normalized = instances_list[0].normalized
 
+        cat_boxes = np.concatenate([ins.bboxes for ins in instances_list], axis=axis)
+        cat_segments = np.concatenate([b.segments for b in instances_list], axis=axis)
+        cat_segments_instance= np.concatenate([b.segments_instance for b in instances_list], axis=axis)
+        cat_keypoints = np.concatenate([b.keypoints for b in instances_list], axis=axis) if use_keypoint else None
+        return cls(cat_boxes, cat_segments, cat_segments_instance, cat_keypoints, bbox_format, normalized)
+
+    @property
+    def bboxes(self):
+        """Return bounding boxes."""
+        return self._bboxes.bboxes
+        
+
+class InstancesParsingWBC:
+    """
+    Container for bounding boxes, segments, and keypoints of detected objects in an image.
+
+    Attributes:
+        _bboxes (Bboxes): Internal object for handling bounding box operations.
+        keypoints (ndarray): keypoints(x, y, visible) with shape [N, 17, 3]. Default is None.
+        normalized (bool): Flag indicating whether the bounding box coordinates are normalized.
+        segments (ndarray): Segments array with shape [N, 1000, 2] after resampling.
+
+    Args:
+        bboxes (ndarray): An array of bounding boxes with shape [N, 4].
+        segments (list | ndarray, optional): A list or array of object segments. Default is None.
+        keypoints (ndarray, optional): An array of keypoints with shape [N, 17, 3]. Default is None.
+        bbox_format (str, optional): The format of bounding boxes ('xywh' or 'xyxy'). Default is 'xywh'.
+        normalized (bool, optional): Whether the bounding box coordinates are normalized. Default is True.
+
+    Examples:
+        ```python
+        # Create an Instances object
+        instances = Instances(
+            bboxes=np.array([[10, 10, 30, 30], [20, 20, 40, 40]]),
+            segments=[np.array([[5, 5], [10, 10]]), np.array([[15, 15], [20, 20]])],
+            keypoints=np.array([[[5, 5, 1], [10, 10, 1]], [[15, 15, 1], [20, 20, 1]]])
+        )
+        ```
+
+    Note:
+        The bounding box format is either 'xywh' or 'xyxy', and is determined by the `bbox_format` argument.
+        This class does not perform input validation, and it assumes the inputs are well-formed.
+    """
+
+    def __init__(self, bboxes, segments=None, segments_instance=None, keypoints=None, bbox_format="xywh", normalized=True) -> None:
+        """
+        Args:
+            bboxes (ndarray): bboxes with shape [N, 4].
+            segments (list | ndarray): segments.
+            keypoints (ndarray): keypoints(x, y, visible) with shape [N, 17, 3].
+        """
+        self._bboxes = Bboxes(bboxes=bboxes, format=bbox_format)
+        self.keypoints = keypoints
+        self.normalized = normalized
+        self.segments = segments
+        self.segments_instance = segments_instance
+
+    def convert_bbox(self, format):
+        """Convert bounding box format."""
+        self._bboxes.convert(format=format)
+
+    @property
+    def bbox_areas(self):
+        """Calculate the area of bounding boxes."""
+        return self._bboxes.areas()
+
+    def scale(self, scale_w, scale_h, bbox_only=False):
+        """This might be similar with denormalize func but without normalized sign."""
+        self._bboxes.mul(scale=(scale_w, scale_h, scale_w, scale_h))
+        if bbox_only:
+            return
+        #pdb.set_trace()
+        new_h = int(self.segments.shape[-2] * scale_h)
+        new_w = int(self.segments.shape[-1] * scale_w)
+        for i in range(self.segments.shape[0]):
+          for c in range(self.segments.shape[1]):
+              self.segments[i, c] = cv2.resize(self.segments[i, c], (new_w, new_h), interpolation=cv2.INTER_NEAREST)
+        self.segments_instance[..., 0] *= scale_w
+        self.segments_instance[..., 1] *= scale_h
+        if self.keypoints is not None:
+            self.keypoints[..., 0] *= scale_w
+            self.keypoints[..., 1] *= scale_h
+
+    def denormalize(self, w, h):
+        """Denormalizes boxes, segments, and keypoints from normalized coordinates."""
+        #pdb.set_trace()
+        if not self.normalized:
+            return
+        self._bboxes.mul(scale=(w, h, w, h))
+        self.segments_instance[..., 0] *= w
+        self.segments_instance[..., 1] *= h
+        if self.keypoints is not None:
+            self.keypoints[..., 0] *= w
+            self.keypoints[..., 1] *= h
+        self.normalized = False
+
+    def normalize(self, w, h):
+        """Normalize bounding boxes, segments, and keypoints to image dimensions."""
+        #pdb.set_trace()
+        if self.normalized:
+            return
+        self._bboxes.mul(scale=(1 / w, 1 / h, 1 / w, 1 / h))
+        self.segments_instance[..., 0] /= w
+        self.segments_instance[..., 1] /= h
+        if self.keypoints is not None:
+            self.keypoints[..., 0] /= w
+            self.keypoints[..., 1] /= h
+        self.normalized = True
+
+    def add_padding(self, padw, padh):
+        """Handle rect and mosaic situation."""
+        #pdb.set_trace()
+        assert not self.normalized, "you should add padding with absolute coordinates."
+        self._bboxes.add(offset=(padw, padh, padw, padh))
+        
+        if padw < 0 or padh < 0:
+            #pdb.set_trace()
+            segments = self.segments
+        
+        padh = int(padh)
+        padw = int(padw)
+    
+        N, C, H, W = self.segments.shape
+    
+        # Compute cropping ranges
+        top = -padh if padh < 0 else 0
+        bottom = H + padh if padh < 0 else H
+        left = -padw if padw < 0 else 0
+        right = W + padw if padw < 0 else W
+    
+        # First crop (if needed)
+        self.segments = self.segments[:, :, top:bottom, left:right]
+    
+        # Then pad (if needed)
+        pad_h = max(0, padh)
+        pad_w = max(0, padw)
+    
+        if pad_h > 0 or pad_w > 0:
+            self.segments = np.pad(
+                self.segments,
+                ((0, 0), (0, 0), (pad_h, pad_h), (pad_w, pad_w)),
+                mode='constant',
+                constant_values=0
+            )
+
+        self.segments_instance[..., 0] += padw
+        self.segments_instance[..., 1] += padh
+        if self.keypoints is not None:
+            self.keypoints[..., 0] += padw
+            self.keypoints[..., 1] += padh
+
+    def add_padding_instance(self, padw, padh):
+        """Handle rect and mosaic situation."""
+        #pdb.set_trace()
+        assert not self.normalized, "you should add padding with absolute coordinates."
+        self._bboxes.add(offset=(padw, padh, padw, padh))
+
+        self.segments_instance[..., 0] += padw
+        self.segments_instance[..., 1] += padh
+        if self.keypoints is not None:
+            self.keypoints[..., 0] += padw
+            self.keypoints[..., 1] += padh
+
+    def __getitem__(self, index) -> "InstancesParsing":
+        """
+        Retrieve a specific instance or a set of instances using indexing.
+
+        Args:
+            index (int, slice, or np.ndarray): The index, slice, or boolean array to select
+                                               the desired instances.
+
+        Returns:
+            Instances: A new Instances object containing the selected bounding boxes,
+                       segments, and keypoints if present.
+
+        Note:
+            When using boolean indexing, make sure to provide a boolean array with the same
+            length as the number of instances.
+        """
+        segments = self.segments[index] if len(self.segments) else self.segments
+        segments_instance = self.segments_instance[index] if len(self.segments_instance) else self.segments_instance
+        keypoints = self.keypoints[index] if self.keypoints is not None else None
+        bboxes = self.bboxes[index]
+        bbox_format = self._bboxes.format
+        return InstancesParsingWBC(
+            bboxes=bboxes,
+            segments=segments,
+            segments_instance=segments_instance,
+            keypoints=keypoints,
+            bbox_format=bbox_format,
+            normalized=self.normalized,
+        )
+
+    def flipud(self, h):
+        """Flips the coordinates of bounding boxes, segments, and keypoints vertically."""
+        if self._bboxes.format == "xyxy":
+            y1 = self.bboxes[:, 1].copy()
+            y2 = self.bboxes[:, 3].copy()
+            self.bboxes[:, 1] = h - y2
+            self.bboxes[:, 3] = h - y1
+        else:
+            self.bboxes[:, 1] = h - self.bboxes[:, 1]
+        self.segments = np.flip(self.segments, axis=2)
+        self.segments_instance[..., 1] = h - self.segments_instance[..., 1]
+        if self.keypoints is not None:
+            self.keypoints[..., 1] = h - self.keypoints[..., 1]
+
+    def fliplr(self, w):
+        """Reverses the order of the bounding boxes and segments horizontally."""
+        if self._bboxes.format == "xyxy":
+            x1 = self.bboxes[:, 0].copy()
+            x2 = self.bboxes[:, 2].copy()
+            self.bboxes[:, 0] = w - x2
+            self.bboxes[:, 2] = w - x1
+        else:
+            self.bboxes[:, 0] = w - self.bboxes[:, 0]
+        self.segments = np.flip(self.segments, axis=3)
+        self.segments_instance[..., 0] = w - self.segments_instance[..., 0]
+        if self.keypoints is not None:
+            self.keypoints[..., 0] = w - self.keypoints[..., 0]
+
+    def clip(self, w, h):
+        """Clips bounding boxes, segments, and keypoints values to stay within image boundaries."""
+        #pdb.set_trace()
+        ori_format = self._bboxes.format
+        self.convert_bbox(format="xyxy")
+        self.bboxes[:, [0, 2]] = self.bboxes[:, [0, 2]].clip(0, w)
+        self.bboxes[:, [1, 3]] = self.bboxes[:, [1, 3]].clip(0, h)
+        if ori_format != "xyxy":
+            self.convert_bbox(format=ori_format)
+        self.segments = self.segments[:, :, :h, :w]
+        self.segments_instance[..., 0] = self.segments_instance[..., 0].clip(0, w)
+        self.segments_instance[..., 1] = self.segments_instance[..., 1].clip(0, h)
+        if self.keypoints is not None:
+            self.keypoints[..., 0] = self.keypoints[..., 0].clip(0, w)
+            self.keypoints[..., 1] = self.keypoints[..., 1].clip(0, h)
+
+    def remove_zero_area_boxes(self):
+        """Remove zero-area boxes, i.e. after clipping some boxes may have zero width or height."""
+        good = self.bbox_areas > 0
+        if not all(good):
+            self._bboxes = self._bboxes[good]
+            if len(self.segments):
+                self.segments = self.segments[good]
+            if len(self.segments_instance):
+                self.segments_instance = self.segments_instance[good]
+            if self.keypoints is not None:
+                self.keypoints = self.keypoints[good]
+        return good
+
+    def update(self, bboxes, segments=None, segments_instance=None, keypoints=None):
+        """Updates instance variables."""
+        pdb.set_trace()
+        self._bboxes = Bboxes(bboxes, format=self._bboxes.format)
+        if segments is not None:
+            self.segments = segments
+        if keypoints is not None:
+            self.keypoints = keypoints
+        if segments_instance is not None:
+            self.segments_instance = segments_instance
+
+    def __len__(self):
+        """Return the length of the instance list."""
+        return len(self.bboxes)
+
+    @classmethod
+    def concatenate(cls, instances_list: List["InstancesParsingWBC"], axis=0) -> "Instances":
+        """
+        Concatenates a list of Instances objects into a single Instances object.
+
+        Args:
+            instances_list (List[Instances]): A list of Instances objects to concatenate.
+            axis (int, optional): The axis along which the arrays will be concatenated. Defaults to 0.
+
+        Returns:
+            Instances: A new Instances object containing the concatenated bounding boxes,
+                       segments, and keypoints if present.
+
+        Note:
+            The `Instances` objects in the list should have the same properties, such as
+            the format of the bounding boxes, whether keypoints are present, and if the
+            coordinates are normalized.
+        """
+        #pdb.set_trace()
+        assert isinstance(instances_list, (list, tuple))
+        if not instances_list:
+            return cls(np.empty(0))
+        assert all(isinstance(instance, InstancesParsingWBC) for instance in instances_list)
+
+        if len(instances_list) == 1:
+            return instances_list[0]
+
+        use_keypoint = instances_list[0].keypoints is not None
+        bbox_format = instances_list[0]._bboxes.format
+        normalized = instances_list[0].normalized
+        
+        #pdb.set_trace()
         cat_boxes = np.concatenate([ins.bboxes for ins in instances_list], axis=axis)
         cat_segments = np.concatenate([b.segments for b in instances_list], axis=axis)
         cat_segments_instance= np.concatenate([b.segments_instance for b in instances_list], axis=axis)

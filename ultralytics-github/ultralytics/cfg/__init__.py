@@ -38,6 +38,7 @@ TASK2DATA = {
     "segment": "coco8-seg.yaml",
     "segmentpart": "coco8-sperm_new_part.yaml",
     "parsingpart": "coco8-sperm_320_part.yaml",
+    "parsingpartWBC": "coco8-WBC_part.yaml",
     "parsingpartmatch": "coco8-sperm_640_part_new_match.yaml",
     "segmentpartmatch": "coco8-sperm_head_tail_new_part.yaml",
     "classify": "imagenet10",

@@ -46,6 +46,12 @@ class SpermParsingPart(Model):
                 "validator": yolo.segment.SegmentationValidator,
                 "predictor": yolo.segment.SegmentationPredictor,
             },
+            "parsingpartWBC": {
+                "model": ParsingPartModel,
+                "trainer": yolo.parsingpartWBC.ParsingPartWBCTrainer,
+                "validator": yolo.parsingpartWBC.ParsingPartWBCValidator,
+                "predictor": yolo.parsingpartWBC.ParsingPartWBCPredictor,
+            },
             "parsingpartmatch": {
                 "model": ParsingPartMatchModel,
                 "trainer": yolo.parsingpartmatch.ParsingPartMatchTrainer,

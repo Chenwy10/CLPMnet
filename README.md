@@ -25,7 +25,13 @@ The datasets are in ultralytics-github/datasets
 
 ## Evaluation
 ```
+For sperm parsing:
 python predict_spermparsing_part_match.py
+For white blood cell:
+python predict_WBC_part.py
+For sperm parsing under high density:
+1. in ultralytics/models/yolo/parsingpartmatch/predict.py evaluate_parsing, change Sperm_parsing_640_new to Sperm_parsing_640_new_high_density
+2. python predict_spermparsing_part_match_high_density.py
 ```
 ## Contact
 Should you have any question, please contact chenwy.chen@mail.utoronto.ca

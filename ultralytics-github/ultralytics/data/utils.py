@@ -689,7 +689,6 @@ def check_segpart_dataset(dataset, autodownload=True):
     # Read YAML
     data = yaml_load(file, append_filename=True)  # dictionary
     
-    #pdb.set_trace()
     # Checks
     for k in "train", "val":
         if k not in data:
@@ -709,6 +708,7 @@ def check_segpart_dataset(dataset, autodownload=True):
         data["nc"] = len(data["names"])
         data["npc"] = len(data["namespart"])
     
+    #pdb.set_trace()
     data["names"] = check_class_names(data["names"])
     data["namespart"] = check_class_names(data["namespart"])
 

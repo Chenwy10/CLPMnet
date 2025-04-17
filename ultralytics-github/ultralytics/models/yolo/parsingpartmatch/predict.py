@@ -165,9 +165,9 @@ class ParsingPartMatchPredictor(DetectionPredictor):
             all_parsings.append(all_parsing)
             all_segms.append(all_segm)
             all_scores.append(np.array(all_score))
-            self.save_image(os.path.basename(self.image_lists[i]), self.images[i], all_bboxes, all_parsing, all_score)
+            #self.save_image(os.path.basename(self.image_lists[i]), self.images[i], all_bboxes, all_parsing, all_score)
         #pdb.set_trace()
-        evaluate_parsing(all_parsings, all_segms, all_scores, True, 0.001, 6, '/home/chenwy/ultralytics/datasets/Sperm_parsing_640_new/val_img/', '/home/chenwy/ultralytics/datasets/Sperm_parsing_640_new/annotations/val.json', self.image_lists, '/home/chenwy/ultralytics/datasets/Sperm_parsing_640_new/val_seg/')
+        evaluate_parsing(all_parsings, all_segms, all_scores, True, 0.001, 6, '/home/chenwy/ultralytics-github/datasets/Sperm_parsing_640_new/val_img/', '/home/chenwy/ultralytics-github/datasets/Sperm_parsing_640_new/annotations/val.json', self.image_lists, '/home/chenwy/ultralytics-github/datasets/Sperm_parsing_640_new/val_seg/')
 
 
     def save_image(self, img_name, img, all_bbox, all_result, all_score):
@@ -239,16 +239,17 @@ class ParsingPartMatchPredictor(DetectionPredictor):
                 x2 = int(all_bbox[i][j][2])
                 y2 = int(all_bbox[i][j][3])
                 lines.append([(x1 + x2)//2, (y1 + y2)//2])
-                cv2.circle(img, ((x1 + x2)//2, (y1 + y2)//2), 3, (255, 0, 0), 3)
-                #cv2.rectangle(img,(x1, y1),(x2, y2),(0, 0, 255),2)
+                #cv2.circle(img, ((x1 + x2)//2, (y1 + y2)//2), 3, (255, 0, 0), 3)
+                cv2.rectangle(img,(x1, y1),(x2, y2),(0, 0, 255),2)
                     
-            if len(lines) > 1:
-                for j in range(len(lines)):
-                    cv2.line(img, lines[0], lines[j], (0, 0, 255), 3)
+            #if len(lines) > 1:
+            #    for j in range(len(lines)):
+            #        cv2.line(img, lines[0], lines[j], (0, 0, 255), 3)
         #pdb.set_trace()
-        out_viz_file = os.path.join("./output/", img_name)
+        out_viz_file = os.path.join("./output640newmatchtest/", img_name)
         cv2.imwrite(out_viz_file, img)
-        
+
+
     @smart_inference_mode()
     def stream_inference(self, source=None, model=None, *args, **kwargs):
         """Streams real-time inference on camera feed and saves results to file."""
@@ -299,7 +300,6 @@ class ParsingPartMatchPredictor(DetectionPredictor):
                 with profilers[2]:
                     self.postprocess(preds, im, im0s)
                 self.run_callbacks("on_predict_postprocess_end")
-                
 
                 # Print batch results
                 if self.args.verbose:
@@ -307,7 +307,7 @@ class ParsingPartMatchPredictor(DetectionPredictor):
 
                 self.run_callbacks("on_predict_batch_end")
                 #yield from self.results
-
             
+        #self.run_callbacks("on_predict_end")
         self.parsing_evaluation()
         #evaluate_parsing()
